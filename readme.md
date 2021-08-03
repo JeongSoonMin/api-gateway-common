@@ -1,4 +1,4 @@
-샘플 API-Gateway(http) 구축
+샘플 API-Gateway(Rest) 공통 authorizer 배포
 ======================================
 ## 기본 필요사항
    * AWS IAM 권한 확인
