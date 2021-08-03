@@ -1,0 +1,87 @@
+frameworkVersion: '2'
+# 서비스명
+service: api-gateway-authorizer
+
+provider:
+  name: aws
+  lambdaHashingVersion: 20201221
+  region: ap-northeast-2
+  # 배포 환경
+  stage: dev
+  # cloudeFormation 에 배포되는 stack 명(다른 곳에서 겹칠 경우 해당 stack에 덮어씌워진다.)
+  stackName: ${self:service}-${sls:stage}
+  # 로그 보존 기간
+  logRetentionInDays: 90
+  memorySize: 128
+  runtime: nodejs14.x
+  # 토큰값 파싱을 위한 secret 값 및 공통 node_module layer를 사용하기 위한 node path 환경변수 설정
+  environment:
+    JWT_SECRET: xxxxxxxxxxxx
+    NODE_PATH: './:/opt'
+  # lambda role 공통 지정
+  iam:
+    role: ${file(serverless-config/${sls:stage}/config.yml):provider.iam.role}
+
+# lambda 배포시 전체 경로가 압축되어 올라가기 때문에 각 람다에서 해당하는 js만 올리기 위해 기본 소스 일괄 제거 설정
+package:
+  # lambda 배포시 function별로 나눠서 압축하여 배포하도록 true 설정
+  individually: true
+  # 공통 일괄 제외 파일 설정. !가 있을 경우 exclude !가 없을 경우 include
+  patterns:
+    - '!serverless-config/**'
+    - '!layers/**'
+    - '!src/**'
+    - '!readme.md'
+
+# 계층으로 관리되어야 할 node_module 설정.
+layers:
+  # lambda function에서 필요한 공통 lib layer 설정. 공통 라이브러리 미필요시 제거.
+  # 수정시에는 description 만 변경
+  NodeLayer:
+    path: layers/gateway/authorizer/node_modules
+    name: ${self:service}-common-layer-${sls:stage}
+    description: ${self:service} common lambda nodejs layer
+    allowedAccounts:
+      - '*'
+    compatibleRuntimes:
+      - nodejs14.x
+
+functions:
+  # App용 비로그인 end-point용. authorization 값이 있을 경우 토큰 파싱해서 넘겨준다.
+  appCommonAuthorizer:
+    handler: src/gateway/authorizer/app/common/authorizer.authCheck
+    description: ${self:service} app common authorizer function
+    package:
+      patterns:
+        - src/gateway/authorizer/app/common/**
+    # 공통 라이브러리 모듈 layer 연결되도록 설정
+    layers:
+      - { Ref: NodeLayerLambdaLayer }
+  # App용 로그인 필수 end-point용. authorization 토큰 파싱해서 넘겨준다.
+  appCommonTokenAuthorizer:
+    handler: src/gateway/authorizer/app/common-token/authorizer.authCheck
+    description: ${self:service} app common token authorizer function
+    package:
+      patterns:
+        - src/gateway/authorizer/app/common-token/**
+    layers:
+      - { Ref: NodeLayerLambdaLayer }
+  # Front용 비로그인 end-point용. authorization 값이 있을 경우 토큰 파싱해서 넘겨준다.
+  frontCommonAuthorizer:
+    handler: src/gateway/authorizer/front/common/authorizer.authCheck
+    description: ${self:service} front common authorizer function
+    package:
+      patterns:
+        - src/gateway/authorizer/front/common/**
+    # 공통 라이브러리 모듈 layer 연결되도록 설정
+    layers:
+      - { Ref: NodeLayerLambdaLayer }
+  # Front용 로그인 필수 end-point용. authorization 토큰 파싱해서 넘겨준다.
+  frontCommonTokenAuthorizer:
+    handler: src/gateway/authorizer/front/common-token/authorizer.authCheck
+    description: ${self:service} front common token authorizer function
+    package:
+      patterns:
+        - src/gateway/authorizer/front/common-token/**
+    layers:
+      - { Ref: NodeLayerLambdaLayer }
